@@ -15,6 +15,10 @@ body{background:var(--black);color:var(--cream);font-family:var(--fb);font-size:
 nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:18px 48px;transition:background .4s,backdrop-filter .4s}
 nav.up{background:rgba(10,10,10,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
 .nbrand{font-family:var(--fd);font-weight:800;font-size:14px;letter-spacing:.2em;text-transform:uppercase;color:var(--yellow)}
+.nhome{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);text-decoration:none;transition:color .2s;border:1px solid var(--border);padding:6px 16px}
+.nhome:hover{color:var(--yellow);border-color:var(--yellow)}
+.nhome svg{transition:transform .2s}
+.nhome:hover svg{transform:translateX(-3px)}
 .nlinks{display:flex;gap:32px;list-style:none}
 .nlinks a{font-family:var(--fd);font-weight:600;font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:var(--dim);text-decoration:none;transition:color .2s}
 .nlinks a:hover{color:var(--yellow)}
@@ -108,6 +112,12 @@ footer{border-top:1px solid var(--border);padding:40px 0;background:var(--black)
 <body>
 <div id="prog"></div>
 <nav id="mainnav">
+  <a href="../index.html" class="nhome">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M6 1L1 7L6 13M1 7H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    All Logs
+  </a>
   <div class="nbrand">Track Day Log</div>
   <ul class="nlinks">
     <li><a href="#track">Circuit</a></li>
