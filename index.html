@@ -162,10 +162,10 @@ footer{padding:44px 0;border-top:1px solid var(--border)}
     <h1 class="h-title">Pursuit<br>of <em>Pace</em></h1>
     <p class="h-sub">A public record of every track day, autocross, and lap &mdash; the times, the lessons, and the incremental hunt for speed.</p>
     <div class="hstats">
-      <div class="hstat"><div class="hs-v">1</div><div class="hs-l">Events &rsquo;26</div></div>
-      <div class="hstat"><div class="hs-v">2:22.26</div><div class="hs-l">Best Lap</div></div>
-      <div class="hstat"><div class="hs-v">MX&#8209;5 RF</div><div class="hs-l">Car</div></div>
-      <div class="hstat"><div class="hs-v">C Street</div><div class="hs-l">Class</div></div>
+      <div class="hstat"><div class="hs-v" id="stat-events">&mdash;</div><div class="hs-l">Events &rsquo;26</div></div>
+      <div class="hstat"><div class="hs-v" id="stat-best">&mdash;</div><div class="hs-l">Best Lap</div></div>
+      <div class="hstat"><div class="hs-v" id="stat-car">MX&#8209;5 RF</div><div class="hs-l">Car</div></div>
+      <div class="hstat"><div class="hs-v" id="stat-class">C Street</div><div class="hs-l">Class</div></div>
     </div>
   </div>
   <div class="scroll-cue"><span>Scroll</span><div class="sline"></div></div>
@@ -196,10 +196,10 @@ footer{padding:44px 0;border-top:1px solid var(--border)}
     <div class="sbar rev">
       <div class="sbar-label">2026 <em>Season</em></div>
       <div class="sbar-stats">
-        <div class="ss"><div class="ss-v">1</div><div class="ss-l">Events</div></div>
-        <div class="ss"><div class="ss-v">2:22.26</div><div class="ss-l">Best Lap</div></div>
-        <div class="ss"><div class="ss-v">1</div><div class="ss-l">Circuits</div></div>
-        <div class="ss"><div class="ss-v">Novice</div><div class="ss-l">Run Group</div></div>
+        <div class="ss"><div class="ss-v" id="sbar-events">&mdash;</div><div class="ss-l">Events</div></div>
+        <div class="ss"><div class="ss-v" id="sbar-best">&mdash;</div><div class="ss-l">Best Lap</div></div>
+        <div class="ss"><div class="ss-v" id="sbar-circuits">&mdash;</div><div class="ss-l">Circuits</div></div>
+        <div class="ss"><div class="ss-v" id="sbar-group">&mdash;</div><div class="ss-l">Run Group</div></div>
       </div>
     </div>
   </div>
@@ -327,7 +327,7 @@ footer{padding:44px 0;border-top:1px solid var(--border)}
     });
   });
 
-  // ── SHEET CONFIG  var CSV_URL = 'https://docs.google.com/spreadsheets/d/1enr2TJqijAsfg5xHqy23Uuri3ZD0cFz76qbyvsnOXic/gviz/tq?tqx=out:json;responseHandler:_gvizCallback&sheet=Sheet1';  var REFRESH_MS = 300000;
+  // ── SHEET CONFIG  var CSV_URL = 'https://docs.google.com/spreadsheets/d/1enr2TJqijAsfg5xHqy23Uuri3ZD0cFz76qbyvsnOXic/gviz/tq?tqx=out:json%3BresponseHandler:_gvizCallback&sheet=Sheet1';  var REFRESH_MS = 300000;
   // ── SHEET PARSER — reads Google's gviz JSON response
   // The column labels in the sheet embed the header text (e.g. "Date June 12-14")
   // Google's JSON puts those in cols[].label — we strip them below
@@ -416,6 +416,31 @@ footer{padding:44px 0;border-top:1px solid var(--border)}
     }, 8000);
 
     // JSONP callback
+    // ── COMPLETED EVENTS (source of truth — update as you log new events) ──
+    var COMPLETED = [
+      { date: '2026-06-18', circuit: 'Thunderhill East', bestLap: '2:22.26', group: 'Novice',  type: 'Track Night' },
+    ];
+
+    function updateStats() {
+      var n       = COMPLETED.length;
+      var laps    = COMPLETED.map(function(e) { return e.bestLap; }).filter(Boolean);
+      var best    = laps.length ? laps.reduce(function(a,b) { return a < b ? a : b; }) : '--';
+      var circuits = COMPLETED.map(function(e) { return e.circuit; })
+                      .filter(function(v,i,a) { return a.indexOf(v) === i; }).length;
+      var groups  = COMPLETED.map(function(e) { return e.group; });
+      var group   = groups.length ? groups[groups.length-1] : '--';
+
+      function set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+      set('stat-events',   n);
+      set('stat-best',     best);
+      set('sbar-events',   n);
+      set('sbar-best',     best);
+      set('sbar-circuits', circuits);
+      set('sbar-group',    group);
+    }
+
+    updateStats();
+
     window._gvizCallback = function(resp) {
       clearTimeout(_jsonpTimer);
       try {
@@ -446,8 +471,7 @@ footer{padding:44px 0;border-top:1px solid var(--border)}
 
     var s = document.createElement('script');
     s.id = 'gviz-script';
-    s.src = CSV_URL.replace('tqx=out:csv', 'tqx=out:json&tqx=responseHandler:_gvizCallback')
-                   .replace('tqx=out:json&', 'tqx=out:json;responseHandler:_gvizCallback&');
+    s.src = CSV_URL;
     document.head.appendChild(s);
   }
 
