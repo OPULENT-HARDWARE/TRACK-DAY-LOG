@@ -327,152 +327,188 @@ footer{padding:44px 0;border-top:1px solid var(--border)}
     });
   });
 
-  // ── SHEET CONFIG  var CSV_URL = 'https://docs.google.com/spreadsheets/d/1enr2TJqijAsfg5xHqy23Uuri3ZD0cFz76qbyvsnOXic/gviz/tq?tqx=out:json%3BresponseHandler:_gvizCallback&sheet=Sheet1';  var REFRESH_MS = 300000;
-  // ── SHEET PARSER — reads Google's gviz JSON response
-  // The column labels in the sheet embed the header text (e.g. "Date June 12-14")
-  // Google's JSON puts those in cols[].label — we strip them below
+  // ── UPCOMING EVENTS — live Google Sheet fetch ──────────────────────────────
+  const SHEET_ID = "1enr2TJqijAsfg5xHqy23Uuri3ZD0cFz76qbyvsnOXic";
+  const REFRESH_MS = 5 * 60 * 1000;
 
-  function stripLabel(s) {
-    // Strips column-name prefix baked into row-1 label: "Date June 12" -> "June 12"
-    return (s || '').replace(/^(Date|Day|Event\s*\/\s*Series|Type|Location|Link|Notes)\s+/i, '').trim();
+  function sheetUrl() {
+    return 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+           '/gviz/tq?headers=1&tqx=out:json&cb=' + Date.now();
+  }
+
+  function cellText(cell) {
+    if (!cell) return '';
+    var v = cell.f != null ? cell.f : cell.v;
+    return v == null ? '' : String(v).trim();
+  }
+
+  function extractJson(raw) {
+    var a = raw.indexOf('{'), b = raw.lastIndexOf('}');
+    if (a < 0 || b < 0) throw new Error('No JSON in response');
+    return JSON.parse(raw.slice(a, b + 1));
+  }
+
+  function normalizeKey(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
+  }
+
+  function tableToEvents(table) {
+    var cols = (table.cols || []).map(function(c) { return normalizeKey(c.label); });
+    function get(cells, names) {
+      for (var n = 0; n < names.length; n++) {
+        var idx = cols.indexOf(normalizeKey(names[n]));
+        if (idx >= 0) return cellText(cells[idx]);
+      }
+      return '';
+    }
+    return (table.rows || []).map(function(row) {
+      var c = row.c || [];
+      return {
+        date:     get(c, ['Date','Dates']),
+        day:      get(c, ['Day','Days']),
+        event:    get(c, ['Event / Series','Event','Series','Event Name']),
+        type:     get(c, ['Type','Category']),
+        location: get(c, ['Location','Venue']),
+        link:     get(c, ['Link','Register','Info','URL']),
+        notes:    get(c, ['Notes','Note','Details'])
+      };
+    }).filter(function(e) { return e.date && e.event; });
+  }
+
+  // Parse freeform date strings — mirrors the working reference implementation
+  var MONTH_ALIASES = {
+    jan:'January',january:'January',feb:'February',february:'February',
+    mar:'March',march:'March',apr:'April',april:'April',may:'May',
+    jun:'June',june:'June',jul:'July',july:'July',
+    aug:'August',august:'August',sep:'September',sept:'September',september:'September',
+    oct:'October',october:'October',nov:'November',november:'November',
+    dec:'December',december:'December'
+  };
+
+  function findWrittenMonth(text) {
+    var t = String(text || '').toLowerCase();
+    var m = t.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t)?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/);
+    return m ? MONTH_ALIASES[m[1]] : '';
+  }
+
+  function parseDate(raw) {
+    var text = String(raw || '').trim().replace(/[–—]/g, '-');
+    // Google serialised date
+    var gd = text.match(/Date\((\d{4}),(\d{1,2}),(\d{1,2})/);
+    if (gd) return new Date(+gd[1], +gd[2], +gd[3]);
+    // Written month
+    var wm = findWrittenMonth(text);
+    if (wm) {
+      var yr = text.match(/20\d{2}/);
+      var year = yr ? +yr[0] : new Date().getFullYear();
+      var tok = text.match(/\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t)?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i);
+      var after = tok ? text.slice(tok.index + tok[0].length) : text;
+      var dm = after.match(/\b(\d{1,2})(?:\s*-\s*\d{1,2})?\b/);
+      if (dm) return new Date(wm + ' ' + dm[1] + ', ' + year);
+    }
+    // Numeric M/D/YYYY or M/D/YY
+    var nm = text.match(/\b(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?/);
+    if (nm) {
+      var y = nm[3] ? +nm[3] : new Date().getFullYear();
+      if (y < 100) y += 2000;
+      return new Date(y, +nm[1]-1, +nm[2]);
+    }
+    var p = new Date(text);
+    return isNaN(p) ? null : p;
+  }
+
+  function isFuture(dateStr) {
+    var start = String(dateStr || '').replace(/[\u2013\u2014-].*$/, '').trim();
+    var d = parseDate(start);
+    if (!d) return true; // can't parse → include
+    var today = new Date(); today.setHours(0,0,0,0);
+    return d >= today;
   }
 
   function fmtDate(raw) {
-    var s = (raw || '').trim();
-    // M/D/YYYY -> "Jun 18, 2026"
+    var s = String(raw || '').trim();
     var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
       var mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      return mn[parseInt(m[1])-1] + ' ' + parseInt(m[2]) + ', ' + m[3];
+      return mn[+m[1]-1] + ' ' + +m[2] + ', ' + m[3];
     }
     return s;
   }
 
-  function isFuture(raw) {
-    var s = (raw || '').trim().replace(/[\u2013\u2014-].*$/, ''); // strip range end
-    // M/D/YYYY
-    var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (m) {
-      var d = new Date(+m[3], +m[1]-1, +m[2]);
-      return d >= new Date(new Date().setHours(0,0,0,0));
-    }
-    // Natural: "July 18, 2026" / "Aug 22" / "Sept 13"
-    var attempt = new Date((/\d{4}/.test(s) ? s : s + ' 2026').replace(/(\d+)\s*[-]\s*\d+/, '$1'));
-    if (!isNaN(attempt)) return attempt >= new Date(new Date().setHours(0,0,0,0));
-    return true;
-  }
-
   function typeTag(t) {
-    var cls = 'td-type' + (t.toLowerCase().indexOf('track') !== -1 ? ' track' : '');
+    var cls = 'td-type' + ((t||'').toLowerCase().indexOf('track') !== -1 ? ' track' : '');
     return '<span class="' + cls + '">' + (t||'') + '</span>';
   }
 
   function renderRows(events) {
     var wrap = document.getElementById('up-wrap');
-    if (!events.length) { wrap.innerHTML = '<div class="up-msg">No upcoming events scheduled.</div>'; return; }
+    var future = events.filter(function(e) { return isFuture(e.date); });
+
+    if (!future.length) {
+      wrap.innerHTML = '<div class="up-msg">No upcoming events scheduled.</div>';
+      return;
+    }
+
+    // Sort ascending by parsed start date
+    future.sort(function(a, b) {
+      var da = parseDate(a.date) || new Date(9999,0,1);
+      var db = parseDate(b.date) || new Date(9999,0,1);
+      return da - db;
+    });
 
     var tbl = '<table class="up-table"><thead><tr>' +
-      '<th>Date</th><th>Day</th><th>Event</th><th>Type</th><th>Location</th><th>Notes</th>' +
-      '<th style="text-align:right">Register</th></tr></thead><tbody>';
+      '<th>Date</th><th>Day</th><th>Event</th><th>Type</th>' +
+      '<th>Location</th><th>Notes</th><th style="text-align:right">Register</th>' +
+      '</tr></thead><tbody>';
 
-    events.forEach(function(ev) {
-      var reg = (ev.link && /^https?:\/\//.test(ev.link))
-        ? '<td class="td-reg"><a href="' + ev.link + '" target="_blank" rel="noopener">Register &rarr;</a></td>'
+    future.forEach(function(ev) {
+      var link = (ev.link || '').trim();
+      var reg = /^https?:\/\//.test(link)
+        ? '<td class="td-reg"><a href="' + link + '" target="_blank" rel="noopener">Register &rarr;</a></td>'
         : '<td class="td-reg"><span class="td-reg-none">TBA</span></td>';
+
       tbl += '<tr>' +
-        '<td class="td-date">' + fmtDate(ev.date) + '</td>' +
-        '<td class="td-day">' + (ev.day||'') + '</td>' +
-        '<td><div class="td-event">' + (ev.event||'') + '</div><div class="td-esub">' + (ev.type||'') + '</div></td>' +
+        '<td class="td-date">'    + fmtDate(ev.date)     + '</td>' +
+        '<td class="td-day">'     + (ev.day||'')         + '</td>' +
+        '<td><div class="td-event">' + (ev.event||'') + '</div>' +
+             '<div class="td-esub">'  + (ev.type||'')  + '</div></td>' +
         '<td>' + typeTag(ev.type) + '</td>' +
-        '<td class="td-loc">' + (ev.location||'') + '</td>' +
-        '<td class="td-notes">' + (ev.notes||'') + '</td>' +
+        '<td class="td-loc">'     + (ev.location||'').replace(/\s+$/,'') + '</td>' +
+        '<td class="td-notes">'   + (ev.notes||'')       + '</td>' +
         reg + '</tr>';
     });
     tbl += '</tbody></table>';
     wrap.innerHTML = tbl;
+
     wrap.querySelectorAll('tbody tr').forEach(function(el, i) {
       el.style.transitionDelay = (i * 0.04) + 's';
       obs.observe(el);
     });
   }
 
-  // ── JSONP FETCH — no CORS, works locally and on Pages
-  var _jsonpTimer = null;
   function fetchSheet() {
-    var ts = new Date();
     var label = document.getElementById('last-refresh');
+    var ts = new Date();
     label.textContent = 'Updating…';
 
-    // Clean up any previous script tag
-    var old = document.getElementById('gviz-script');
-    if (old) old.parentNode.removeChild(old);
-    if (_jsonpTimer) clearTimeout(_jsonpTimer);
-
-    // Timeout fallback
-    _jsonpTimer = setTimeout(function() {
-      document.getElementById('up-wrap').innerHTML =
-        '<div class="up-err">Schedule unavailable — check your internet connection.</div>';
-      label.textContent = 'Unavailable';
-    }, 8000);
-
-    // JSONP callback
-    // ── COMPLETED EVENTS (source of truth — update as you log new events) ──
-    var COMPLETED = [
-      { date: '2026-06-18', circuit: 'Thunderhill East', bestLap: '2:22.26', group: 'Novice',  type: 'Track Night' },
-    ];
-
-    function updateStats() {
-      var n       = COMPLETED.length;
-      var laps    = COMPLETED.map(function(e) { return e.bestLap; }).filter(Boolean);
-      var best    = laps.length ? laps.reduce(function(a,b) { return a < b ? a : b; }) : '--';
-      var circuits = COMPLETED.map(function(e) { return e.circuit; })
-                      .filter(function(v,i,a) { return a.indexOf(v) === i; }).length;
-      var groups  = COMPLETED.map(function(e) { return e.group; });
-      var group   = groups.length ? groups[groups.length-1] : '--';
-
-      function set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
-      set('stat-events',   n);
-      set('stat-best',     best);
-      set('sbar-events',   n);
-      set('sbar-best',     best);
-      set('sbar-circuits', circuits);
-      set('sbar-group',    group);
-    }
-
-    updateStats();
-
-    window._gvizCallback = function(resp) {
-      clearTimeout(_jsonpTimer);
-      try {
-        var rows = resp.table.rows;
-        var events = [];
-        rows.forEach(function(row) {
-          if (!row.c || !row.c[0] || !row.c[0].v) return;
-          var date = (row.c[0].v || '').toString().trim();
-          if (!isFuture(date)) return;
-          events.push({
-            date:     date,
-            day:      row.c[1] ? (row.c[1].v||'').toString() : '',
-            event:    row.c[2] ? (row.c[2].v||'').toString() : '',
-            type:     row.c[3] ? (row.c[3].v||'').toString() : '',
-            location: row.c[4] ? (row.c[4].v||'').toString().trim() : '',
-            link:     row.c[5] ? (row.c[5].v||'').toString().trim() : '',
-            notes:    row.c[6] ? (row.c[6].v||'').toString() : ''
-          });
-        });
+    fetch(sheetUrl(), { cache: 'no-store' })
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function(text) {
+        var json = extractJson(text);
+        var events = tableToEvents(json.table);
         renderRows(events);
-        var h = ts.getHours(), m = ('0'+ts.getMinutes()).slice(-2);
+        var h = ts.getHours(), m = ('0' + ts.getMinutes()).slice(-2);
         label.textContent = 'Updated ' + h + ':' + m;
-      } catch(e) {
-        document.getElementById('up-wrap').innerHTML = '<div class="up-err">Error parsing schedule.</div>';
-        label.textContent = 'Parse error';
-      }
-    };
-
-    var s = document.createElement('script');
-    s.id = 'gviz-script';
-    s.src = CSV_URL;
-    document.head.appendChild(s);
+      })
+      .catch(function(err) {
+        console.warn('Sheet fetch failed:', err);
+        document.getElementById('up-wrap').innerHTML =
+          '<div class="up-err">Schedule unavailable &mdash; requires a web server or GitHub Pages (CORS blocks local file:// fetch).</div>';
+        label.textContent = 'Unavailable';
+      });
   }
 
   fetchSheet();
