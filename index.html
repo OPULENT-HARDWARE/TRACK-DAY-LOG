@@ -390,34 +390,38 @@ footer{padding:44px 0;border-top:1px solid var(--border)}
   updateStats();
 
   // ── ALL LOGS — add a row for each standalone log/article page ───────────
-  // slug maps to ./slug/index.html — newest first. Add concept logs here even if they are not season events.
+  // slug maps to ./slug/index.html — order doesn't matter, sorted by sortDate desc.
+  // Add concept logs here even if they are not season events; use end date for sortDate.
   var LOGS = [
     {
-      date:   'June 2026',
-      title:  'Sim to Track, Track to Sim',
-      venue:  'Thunderhill East + Crows Landing',
-      slug:   '2026-06-sim-to-track-loop',
-      bestLap:'2:11.976',
-      group:  'Sim + Real',
-      tags:   ['Sim Training','TNIA','AutoX','MX-5']
+      date:     'June 2026',
+      sortDate: '2026-06-30',
+      title:    'Sim to Track, Track to Sim',
+      venue:    'Thunderhill East + Crows Landing',
+      slug:     '2026-06-sim-to-track-loop',
+      bestLap:  '2:11.976',
+      group:    'Sim + Real',
+      tags:     ['Sim Training','TNIA','AutoX','MX-5']
     },
     {
-      date:   'June 18, 2026',
-      title:  'Thunderhill East Cyclone',
-      venue:  'Thunderhill Raceway Park',
-      slug:   '2026-06-18-thunderhill-east',
-      bestLap:'2:22.26',
-      group:  'Novice',
-      tags:   ['TNIA','East Cyclone','RE-71RZ','#33']
+      date:     'June 18, 2026',
+      sortDate: '2026-06-18',
+      title:    'Thunderhill East Cyclone',
+      venue:    'Thunderhill Raceway Park',
+      slug:     '2026-06-18-thunderhill-east',
+      bestLap:  '2:22.26',
+      group:    'Novice',
+      tags:     ['TNIA','East Cyclone','RE-71RZ','#33']
     },
     {
-      date:   'March 14–15, 2026',
-      title:  'SCCA Starting Line',
-      venue:  'Crows Landing Airfield',
-      slug:   '2026-03-14-crows-landing-starting-line',
-      bestLap:'1st Novice',
-      group:  'Novice',
-      tags:   ['Starting Line','SFR AutoX','RE-71RZ','NCS']
+      date:     'March 14–15, 2026',
+      sortDate: '2026-03-15',
+      title:    'SCCA Starting Line',
+      venue:    'Crows Landing Airfield',
+      slug:     '2026-03-14-crows-landing-starting-line',
+      bestLap:  '1st Novice',
+      group:    'Novice',
+      tags:     ['Starting Line','SFR AutoX','RE-71RZ','NCS']
     },
   ];
 
@@ -428,7 +432,10 @@ footer{padding:44px 0;border-top:1px solid var(--border)}
       wrap.innerHTML = '<div class="lb-empty">No logs yet.</div>';
       return;
     }
-    wrap.innerHTML = LOGS.map(function(log) {
+    var sorted = LOGS.slice().sort(function(a, b) {
+      return new Date(b.sortDate) - new Date(a.sortDate);
+    });
+    wrap.innerHTML = sorted.map(function(log) {
       var tags = (log.tags||[]).slice(0,3).map(function(t) {
         return '<span class="ef-tag">' + t + '</span>';
       }).join('');
