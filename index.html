@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -388,9 +389,18 @@ footer{padding:44px 0;border-top:1px solid var(--border)}
 
   updateStats();
 
-  // ── ALL LOGS — add a row for each completed log page ──────────────────────
-  // slug maps to ./YYYY-MM-DD-venue-name/index.html — newest first
+  // ── ALL LOGS — add a row for each standalone log/article page ───────────
+  // slug maps to ./slug/index.html — newest first. Add concept logs here even if they are not season events.
   var LOGS = [
+    {
+      date:   'June 2026',
+      title:  'Sim to Track, Track to Sim',
+      venue:  'Thunderhill East + Crows Landing',
+      slug:   '2026-06-sim-to-track-loop',
+      bestLap:'2:11.976',
+      group:  'Sim + Real',
+      tags:   ['Sim Training','TNIA','AutoX','MX-5']
+    },
     {
       date:   'June 18, 2026',
       title:  'Thunderhill East Cyclone',
